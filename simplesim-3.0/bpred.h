@@ -104,7 +104,8 @@ enum bpred_class {
   BPred2bit,			/* 2-bit saturating cntr pred (dir mapped) */
   BPredTaken,			/* static predict taken */
   BPredNotTaken,		/* static predict not taken */
-  BPred_NUM
+  BPred_NUM,
+  BPredPerceptron   /* perceptron predictor */
 };
 
 /* an entry in a BTB */
@@ -119,6 +120,13 @@ struct bpred_btb_ent_t {
 struct bpred_dir_t {
   enum bpred_class class;	/* type of predictor */
   union {
+    struct {
+      unsigned int GHT_size; /* global history table size */
+      unsigned int perceptron_table_size; /* perceptron table size */
+      int threshold;
+      int *GHT;
+      int *perceptrons;
+    } percept;
     struct {
       unsigned int size;	/* number of entries in direct-mapped table */
       unsigned char *table;	/* prediction state table */
@@ -138,6 +146,7 @@ struct bpred_dir_t {
 struct bpred_t {
   enum bpred_class class;	/* type of predictor */
   struct {
+    struct bpred_dir_t *perceptron;
     struct bpred_dir_t *bimod;	  /* first direction predictor */
     struct bpred_dir_t *twolev;	  /* second direction predictor */
     struct bpred_dir_t *meta;	  /* meta predictor */
@@ -174,10 +183,12 @@ struct bpred_t {
 };
 
 /* branch predictor update information */
+/* TODO: check potential update here */
 struct bpred_update_t {
   char *pdir1;		/* direction-1 predictor counter */
   char *pdir2;		/* direction-2 predictor counter */
   char *pmeta;		/* meta predictor counter */
+  int y_out; /* used only for perceptron */
   struct {		/* predicted directions */
     unsigned int ras    : 1;	/* RAS used */
     unsigned int bimod  : 1;    /* bimodal predictor */
