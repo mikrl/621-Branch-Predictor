@@ -82,6 +82,14 @@ static unsigned int max_insts;
 /* branch predictor type {nottaken|taken|perfect|bimod|2lev} */
 static char *pred_type;
 
+/* perceptron predictor config (<GHT_size> <perceptron_table_size>) */
+static int perceptron_nelt = 2;
+static int perceptron_config [2] = 
+  { /* global history table size */ 36, /* perceptron table size */1024};
+/* TODO: look into this */
+/* perceptron table size = ? */
+/* difficult to precisely control */ 
+
 /* bimodal predictor config (<table_size>) */
 static int bimod_nelt = 1;
 static int bimod_config[1] =
@@ -120,10 +128,11 @@ void
 sim_reg_options(struct opt_odb_t *odb)
 {
   opt_reg_header(odb, 
-"sim-bpred: This simulator implements a branch predictor analyzer.\n"
+"sim-bpred-perceptron: This simulator implements Perceptron branch predictor analyzer.\n"
 		 );
 
   /* branch predictor options */
+  /*
   opt_reg_note(odb,
 "  Branch predictor configuration examples for 2-level predictor:\n"
 "    Configurations:   N, M, W, X\n"
@@ -139,17 +148,20 @@ sim_reg_options(struct opt_odb_t *odb)
 "      gshare  : 1, W, 2^W, 1\n"
 "  Predictor `comb' combines a bimodal and a 2-level predictor.\n"
                );
+    */
 
   /* instruction limit */
   opt_reg_uint(odb, "-max:inst", "maximum number of inst's to execute",
 	       &max_insts, /* default */0,
 	       /* print */TRUE, /* format */NULL);
 
+  /* this below is not supposed to be useful */
+  /* until specified */
   opt_reg_string(odb, "-bpred",
-		 "branch predictor type {nottaken|taken|bimod|2lev|comb}",
+		 "branch predictor type {nottaken|taken|bimod|2lev|comb|perceptron}",
                  &pred_type, /* default */"bimod",
                  /* print */TRUE, /* format */NULL);
-
+  
   opt_reg_int_list(odb, "-bpred:bimod",
 		   "bimodal predictor config (<table size>)",
 		   bimod_config, bimod_nelt, &bimod_nelt,
@@ -168,6 +180,13 @@ sim_reg_options(struct opt_odb_t *odb)
 		   comb_config, comb_nelt, &comb_nelt,
 		   /* default */comb_config,
 		   /* print */TRUE, /* format */NULL, /* !accrue */FALSE);
+  /* until here */
+
+  opt_reg_init_list(odb, "-bpred:perceptron",
+       "perceptron predictor config (<GHT_size> <Perceptron_table_size>)",
+       perceptron_config, perceptron_nelt, &perceptron_nelt,
+       /* default */perceptron_config,
+       /* print */TRUE, /* format */NULL, /* !accure */FALSE);
 
   opt_reg_int(odb, "-bpred:ras",
               "return address stack size (0 for no return stack)",
@@ -185,7 +204,25 @@ sim_reg_options(struct opt_odb_t *odb)
 void
 sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
 {
-  if (!mystricmp(pred_type, "taken"))
+  /* modification made here */
+  if (!mystricmp(pred_type, "perceptron"))
+    {
+      if (perceptron_nelt != 2)
+  fatal("bad perceptron predictor config (<GHT_size> <Perceptron_table_size>)");
+
+      /* perceptron predictor */
+      pred = bpred_create(BPredPerceptron, 
+        /* bimod table size */0,
+			  /* 2lev l1 size */0,
+			  /* 2lev l2 size */0,
+			  /* meta table size / perceptron table size */perceptron_config[1],
+			  /* history reg size / GHT size */perceptron_config[0],
+			  /* history xor address */0,
+			  /* btb sets */0,
+			  /* btb assoc */0,
+			  /* ret-addr stack size */ras_size);
+    }
+  else if (!mystricmp(pred_type, "taken"))
     {
       /* static predictor, not taken */
       pred = bpred_create(BPredTaken, 0, 0, 0, 0, 0, 0, 0, 0, 0);
