@@ -82,13 +82,12 @@ static unsigned int max_insts;
 /* branch predictor type {nottaken|taken|perfect|bimod|2lev} */
 static char *pred_type;
 
-/* perceptron predictor config (<GHT_size> <perceptron_table_size>) */
-static int perceptron_nelt = 2;
-static int perceptron_config [2] = 
-  { /* global history table size */ 36, /* perceptron table size */1024};
-/* TODO: look into this */
-/* perceptron table size = ? */
-/* difficult to precisely control */ 
+/* perceptron predictor config (<GHT_size> <LHT_size> <perceptron_table_size>) */
+static int perceptron_nelt = 3;
+static int perceptron_config[3] = 
+  { /* global history table size */36, 
+  /* local history table size */0, 
+  /* perceptron table size */1024};
 
 /* bimodal predictor config (<table_size>) */
 static int bimod_nelt = 1;
@@ -183,7 +182,7 @@ sim_reg_options(struct opt_odb_t *odb)
   /* until here */
 
   opt_reg_int_list(odb, "-bpred:perceptron",
-       "perceptron predictor config (<GHT_size> <Perceptron_table_size>)",
+       "perceptron predictor config (<GHT_size> <LHT_size> <Perceptron_table_size>)",
        perceptron_config, perceptron_nelt, &perceptron_nelt,
        /* default */perceptron_config,
        /* print */TRUE, /* format */NULL, /* !accure */FALSE);
@@ -207,15 +206,15 @@ sim_check_options(struct opt_odb_t *odb, int argc, char **argv)
   /* modification made here */
   if (!mystricmp(pred_type, "perceptron"))
     {
-      if (perceptron_nelt != 2)
-  fatal("bad perceptron predictor config (<GHT_size> <Perceptron_table_size>)");
+      if (perceptron_nelt != 3)
+  fatal("bad perceptron predictor config (<GHT_size> <LHT_size> <Perceptron_table_size>)");
 
       /* perceptron predictor */
       pred = bpred_create(BPredPerceptron, 
         /* bimod table size */0,
 			  /* 2lev l1 size */0,
-			  /* 2lev l2 size */0,
-			  /* meta table size / perceptron table size */perceptron_config[1],
+			  /* 2lev l2 size / LHT size */perceptron_config[1],
+			  /* meta table size / perceptron table size */perceptron_config[2],
 			  /* history reg size / GHT size */perceptron_config[0],
 			  /* history xor address */0,
 			  /* btb sets */0,
