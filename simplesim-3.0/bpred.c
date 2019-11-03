@@ -85,13 +85,14 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
   switch (class) {
   case BPredPerceptron:
   {
-    int threshold = 1.93 * shift_width + 14;
+    int threshold = 1.93 * (shift_width + l2size) + 14;
     /* when add local history to perceptron */
     /* need to change this threshold equation */
     pred->dirpred.perceptron = 
-      bpred_dir_create(BPredPerceptron, threshold, 0, shift_width, meta_size);
+      bpred_dir_create(BPredPerceptron, threshold, l2size, shift_width, meta_size);
       /* passing variables through strange names */
       /* shift_width is global history table size */
+      /* l2size is local history table size */
       /* meta_size is perceptron table size */
       /* beware of potential error here */
       /* set threshold to be lower(1.93h + 14) */
@@ -232,8 +233,13 @@ bpred_dir_create (
   fatal("threshold, `%d', must be greater than 0",
         l1size);
       
+      if(l2size < 0)
+  fatal("local history table size, `%d', must be non-negative",
+        l2size);
+
       pred_dir->config.percept.threshold = l1size;
       pred_dir->config.percept.GHT_size = shift_width;
+      pred_dir->config.percept.LHT_size = l2size;
       pred_dir->config.percept.perceptron_table_size = xor;
       pred_dir->config.percept.GHT = calloc(shift_width, sizeof(int));
       if(!pred_dir->config.percept.GHT)
@@ -241,10 +247,18 @@ bpred_dir_create (
 
       /* TODO: test traditional vs C99 2D array allocation */
       /* may need to declare macro for traditional allocation */
-      pred_dir->config.percept.perceptrons = calloc(shift_width * xor, sizeof(int));
+      pred_dir->config.percept.perceptrons = calloc((shift_width + l2size) * xor, sizeof(int));
       if(!pred_dir->config.percept.perceptrons)
   fatal("cannot allocate perceptron table");
 
+      if(l2size > 0){
+        pred_dir->config.percept.LHT = calloc(l2size * xor, sizeof(int));
+        if(!pred_dir->config.percept.LHT)
+    fatal("cannot allocate local history table");
+      }
+      else
+        pred_dir->config.percept.LHT = NULL;
+      
       break;
     }
   case BPred2Level:
@@ -324,9 +338,9 @@ bpred_dir_config(
   switch (pred_dir->class) {
   case BPredPerceptron:
     fprintf(stream, 
-      "pred_dir: %s: %d threshold, %d global history length, %d perceptrons\n",
+      "pred_dir: %s: %d threshold, %d global history length, %d local history length, %d perceptrons\n",
       name, pred_dir->config.percept.threshold, pred_dir->config.percept.GHT_size,
-      pred_dir->config.percept.perceptron_table_size);
+      pred_dir->config.percept.LHT_size, pred_dir->config.percept.perceptron_table_size);
     break;
   case BPred2Level:
     fprintf(stream,
@@ -550,6 +564,10 @@ bpred_after_priming(struct bpred_t *bpred)
   ((((ADDR) >> 19) ^ ((ADDR) >> MD_BR_SHIFT)) & ((PRED)->config.bimod.size-1))
     /* was: ((baddr >> 16) ^ baddr) & (pred->dirpred.bimod.size-1) */
 
+/* percetron table hash function MACRO */
+#define PERCEPT_HASH(PRED, ADDR)          \
+  (((ADDR) >> MD_BR_SHIFT) & ((PRED)->config.percept.perceptron_table_size-1))
+
 /* predicts a branch direction */
 char *						/* pointer to counter */
 bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
@@ -561,6 +579,9 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
   switch (pred_dir->class) {
     case BPredPerceptron:
       {
+        return (char *)p; //NULL
+        /* this function is not used for perceptron */
+
         /* find correct perceptron from table */
         int perceptron_index, table_index;
 
@@ -663,18 +684,42 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
     case BPredPerceptron:
       if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND))
   { 
-    /* NOTE! this value is type (char *) */
+    /* NOTE! recorded values are type (char *) */
     /* convert to (int *) to access value */
+    /*
     dir_update_ptr->pdir1 = 
       bpred_dir_lookup (pred->dirpred.perceptron, baddr);
+    */
   
-    /* any good ?? come back after update */
+    /* hash branch address to perceptron */
+    int perceptron_index = PERCEPT_HASH(pred->dirpred.perceptron, baddr);
+    if (perceptron_index < 0 || perceptron_index >= pred->dirpred.perceptron->config.percept.perceptron_table_size)
+fatal("Hash function return value out of range");
+
+    /* compute starting index of perceptron table */
+    int ptable_index = perceptron_index * 
+      (pred->dirpred.perceptron->config.percept.GHT_size + pred->dirpred.perceptron->config.percept.LHT_size);
+    dir_update_ptr->pdir1 = 
+      (char *)(&pred->dirpred.perceptron->config.percept.perceptrons[ptable_index]);
+    
+    if(pred->dirpred.perceptron->config.percept.LHT_size > 0){
+      /* compute starting index of local history table */
+      int ltable_index = perceptron_index * pred->dirpred.perceptron->config.percept.LHT_size;
+      dir_update_ptr->pmeta = 
+        (char *)(&pred->dirpred.perceptron->config.percept.LHT[ltable_index]);
+    }
+
+    /* record global history table */
     dir_update_ptr->pdir2 = 
       (char *)(pred->dirpred.perceptron->config.percept.GHT);
+
     /* compute the result of perceptron */
     /* biased x0 */
     int perceptron_result = 1;
-    for(int i = 0; i < pred->dirpred.perceptron->config.percept.GHT_size; i++)
+
+    /* GHT portion */
+    int i = 0;
+    for(; i < pred->dirpred.perceptron->config.percept.GHT_size; i++)
     {
       /* TODO: remove this after debug */
       if(abs(pred->dirpred.perceptron->config.percept.GHT[i]) > 1)
@@ -682,8 +727,21 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 
       if(pred->dirpred.perceptron->config.percept.GHT[i] > 0)
         perceptron_result += ((int *)dir_update_ptr->pdir1)[i];
-      else //if(pred->dirpred.)
+      else
         perceptron_result -= ((int *)dir_update_ptr->pdir1)[i];
+    }
+
+    /* LHT portion */
+    for(int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++)
+    {
+      /* TODO: remove this after debug */
+      if(abs(pred->dirpred.perceptron->config.percept.LHT[j]) > 1)
+  fatal("Update LHT algo is wrong, abs out of range");
+
+      if(pred->dirpred.perceptron->config.percept.LHT[j] > 0)
+        perceptron_result += ((int *)dir_update_ptr->pdir1)[i+j];
+      else
+        perceptron_result -= ((int *)dir_update_ptr->pdir1)[i+j];
     }
 
     /* record result value and pass to bpred_update */
@@ -936,51 +994,47 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
     if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)){
       /* conditional branch */
       /* train the corresponding perceptron */
-      if (!!pred_taken == !!taken){
-        /* correct prediction */
-        if (abs(dir_update_ptr->y_out) <= pred->dirpred.perceptron->config.percept.threshold){
-          /* less than train threshold => continue to train*/
-          if (taken){
-            /* branch taken */
-            for (int i = 0; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
-              if (((int *)dir_update_ptr->pdir2)[i] > 0)
-                ((int *)dir_update_ptr->pdir1)[i] += 1;
-              else
-                ((int *)dir_update_ptr->pdir1)[i] -= 1;
-            }
-          }
-          else{
-            /* branch not taken */
-            for (int i = 0; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
-              if (((int *)dir_update_ptr->pdir2)[i] > 0)
-                ((int *)dir_update_ptr->pdir1)[i] += -1;
-              else
-                ((int *)dir_update_ptr->pdir1)[i] -= -1;
-            }
-          }
-        }
-      }
-      else {
-        /* incorrect prediction => always train */
+      if (!!pred_taken != !!taken || 
+        abs(dir_update_ptr->y_out) <= pred->dirpred.perceptron->config.percept.threshold){
+        /* incorrect prediction || less than threshold => continue to train */
         if (taken){
           /* branch taken */
-          for (int i = 0; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
+          /* GHT portion */
+          int i = 0;
+          for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
             if (((int *)dir_update_ptr->pdir2)[i] > 0)
               ((int *)dir_update_ptr->pdir1)[i] += 1;
             else
               ((int *)dir_update_ptr->pdir1)[i] -= 1;
           }
+          /* LHT portion */
+          for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
+            if (((int *)dir_update_ptr->pmeta)[j] > 0)
+              ((int *)dir_update_ptr->pdir1)[i+j] += 1;
+            else
+              ((int *)dir_update_ptr->pdir1)[i+j] -= 1;
+          }
         }
         else{
           /* branch not taken */
-          for (int i = 0; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
+          /* GHT portion */
+          int i = 0;
+          for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
             if (((int *)dir_update_ptr->pdir2)[i] > 0)
               ((int *)dir_update_ptr->pdir1)[i] += -1;
             else
               ((int *)dir_update_ptr->pdir1)[i] -= -1;
           }
+          /* LHT portion */
+          for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
+            if (((int *)dir_update_ptr->pmeta)[i] > 0)
+              ((int *)dir_update_ptr->pdir1)[i+j] += -1;
+            else
+              ((int *)dir_update_ptr->pdir1)[i+j] -= -1;
+          }
         }
       }
+
       /* move the global shift register */
       for (int i = pred->dirpred.perceptron->config.percept.GHT_size - 1; i > 0; i--){
         ((int *)dir_update_ptr->pdir2)[i] = ((int *)dir_update_ptr->pdir2)[i-1];
@@ -989,6 +1043,17 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
         ((int *)dir_update_ptr->pdir2)[0] = 1;
       else
         ((int *)dir_update_ptr->pdir2)[0] = -1;
+
+      /* move the local shift register */
+      if (pred->dirpred.perceptron->config.percept.LHT_size > 0){
+        for (int i = pred->dirpred.perceptron->config.percept.LHT_size - 1; i > 0; i--){
+          ((int *)dir_update_ptr->pmeta)[i] = ((int *)dir_update_ptr->pmeta)[i-1];
+        }
+        if (taken)
+          ((int *)dir_update_ptr->pmeta)[0] = 1;
+        else
+          ((int *)dir_update_ptr->pmeta)[0] = -1;
+      }
     }
     return;
   }
