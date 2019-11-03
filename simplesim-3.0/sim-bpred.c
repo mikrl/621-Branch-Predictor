@@ -182,7 +182,7 @@ sim_reg_options(struct opt_odb_t *odb)
 		   /* print */TRUE, /* format */NULL, /* !accrue */FALSE);
   /* until here */
 
-  opt_reg_init_list(odb, "-bpred:perceptron",
+  opt_reg_int_list(odb, "-bpred:perceptron",
        "perceptron predictor config (<GHT_size> <Perceptron_table_size>)",
        perceptron_config, perceptron_nelt, &perceptron_nelt,
        /* default */perceptron_config,
