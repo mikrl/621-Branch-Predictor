@@ -122,9 +122,11 @@ struct bpred_dir_t {
   union {
     struct {
       unsigned int GHT_size; /* global history table size */
+      unsigned int LHT_size; /* local history table size */
       unsigned int perceptron_table_size; /* perceptron table size */
       int threshold;
       int *GHT;
+      int *LHT;
       int *perceptrons;
     } percept;
     struct {
