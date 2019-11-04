@@ -725,23 +725,25 @@ fatal("Hash function return value out of range");
       if(abs(pred->dirpred.perceptron->config.percept.GHT[i]) > 1)
   fatal("Update GHT algo is wrong, abs out of range");
 
+      perceptron_result +=
+        pred->dirpred.perceptron->config.percept.GHT[i] * ((int *)dir_update_ptr->pdir1)[i];
+      /*
       if(pred->dirpred.perceptron->config.percept.GHT[i] > 0)
         perceptron_result += ((int *)dir_update_ptr->pdir1)[i];
       else
         perceptron_result -= ((int *)dir_update_ptr->pdir1)[i];
+      */
     }
 
     /* LHT portion */
     for(int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++)
     {
       /* TODO: remove this after debug */
-      if(abs(pred->dirpred.perceptron->config.percept.LHT[j]) > 1)
+      if(abs(((int *)dir_update_ptr->pmeta)[j]) > 1)
   fatal("Update LHT algo is wrong, abs out of range");
 
-      if(pred->dirpred.perceptron->config.percept.LHT[j] > 0)
-        perceptron_result += ((int *)dir_update_ptr->pdir1)[i+j];
-      else
-        perceptron_result -= ((int *)dir_update_ptr->pdir1)[i+j];
+      perceptron_result += 
+        ((int *)dir_update_ptr->pmeta)[j] * ((int *)dir_update_ptr->pdir1)[i+j];
     }
 
     /* record result value and pass to bpred_update */
