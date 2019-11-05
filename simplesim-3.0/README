@@ -17,7 +17,8 @@ Run sim-bpred with perceptron predictor with options:
 	z: number of perceptrons
 		must >=0 && power of 2
 
-./sim-bpred -bpred -h
+To see helps and instructions to run
+	./sim-bpred -bpred -h
 
 Example:
 	./sim-bpred -bpred perceptron -bpred:perceptron 32 4 1024 cc1.alpha -O 1stmt.i
