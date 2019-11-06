@@ -722,17 +722,11 @@ fatal("Hash function return value out of range");
     for(; i < pred->dirpred.perceptron->config.percept.GHT_size; i++)
     {
       /* TODO: remove this after debug */
-      if(abs(pred->dirpred.perceptron->config.percept.GHT[i]) > 1)
+      if(abs(((int *)dir_update_ptr->pdir2)[i]) > 1)
   fatal("Update GHT algo is wrong, abs out of range");
 
       perceptron_result +=
-        pred->dirpred.perceptron->config.percept.GHT[i] * ((int *)dir_update_ptr->pdir1)[i];
-      /*
-      if(pred->dirpred.perceptron->config.percept.GHT[i] > 0)
-        perceptron_result += ((int *)dir_update_ptr->pdir1)[i];
-      else
-        perceptron_result -= ((int *)dir_update_ptr->pdir1)[i];
-      */
+        ((int *)dir_update_ptr->pdir2)[i] * ((int *)dir_update_ptr->pdir1)[i];
     }
 
     /* LHT portion */
@@ -1004,17 +998,11 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
           /* GHT portion */
           int i = 0;
           for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
-            if (((int *)dir_update_ptr->pdir2)[i] > 0)
-              ((int *)dir_update_ptr->pdir1)[i] += 1;
-            else
-              ((int *)dir_update_ptr->pdir1)[i] -= 1;
+            ((int *)dir_update_ptr->pdir1)[i] += ((int *)dir_update_ptr->pdir2)[i];
           }
           /* LHT portion */
           for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
-            if (((int *)dir_update_ptr->pmeta)[j] > 0)
-              ((int *)dir_update_ptr->pdir1)[i+j] += 1;
-            else
-              ((int *)dir_update_ptr->pdir1)[i+j] -= 1;
+            ((int *)dir_update_ptr->pdir1)[i+j] += ((int *)dir_update_ptr->pmeta)[j];
           }
         }
         else{
@@ -1022,17 +1010,11 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
           /* GHT portion */
           int i = 0;
           for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
-            if (((int *)dir_update_ptr->pdir2)[i] > 0)
-              ((int *)dir_update_ptr->pdir1)[i] += -1;
-            else
-              ((int *)dir_update_ptr->pdir1)[i] -= -1;
+            ((int *)dir_update_ptr->pdir1)[i] -= ((int *)dir_update_ptr->pdir2)[i];
           }
           /* LHT portion */
           for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
-            if (((int *)dir_update_ptr->pmeta)[i] > 0)
-              ((int *)dir_update_ptr->pdir1)[i+j] += -1;
-            else
-              ((int *)dir_update_ptr->pdir1)[i+j] -= -1;
+            ((int *)dir_update_ptr->pdir1)[i+j] -= ((int *)dir_update_ptr->pmeta)[j];
           }
         }
       }
