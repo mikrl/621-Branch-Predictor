@@ -83,6 +83,22 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
   pred->class = class;
 
   switch (class) {
+  case BPredPerceptron:
+  {
+    int threshold = 1.93 * (shift_width + l2size) + 14;
+    /* when add local history to perceptron */
+    /* need to change this threshold equation */
+    pred->dirpred.perceptron = 
+      bpred_dir_create(BPredPerceptron, threshold, l2size, shift_width, meta_size);
+      /* passing variables through strange names */
+      /* shift_width is global history table size */
+      /* l2size is local history table size */
+      /* meta_size is perceptron table size */
+      /* beware of potential error here */
+      /* set threshold to be lower(1.93h + 14) */
+  }
+    break;
+  
   case BPredComb:
     /* bimodal component */
     pred->dirpred.bimod = 
@@ -118,6 +134,7 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
   }
 
   /* allocate ret-addr stack */
+  /* TODO: varify the NON use of return address stack with perceptron */
   switch (class) {
   case BPredComb:
   case BPred2Level:
@@ -163,7 +180,8 @@ bpred_create(enum bpred_class class,	/* type of predictor to create */
       
       break;
     }
-
+  
+  case BPredPerceptron:
   case BPredTaken:
   case BPredNotTaken:
     /* no other state */
@@ -196,6 +214,53 @@ bpred_dir_create (
 
   cnt = -1;
   switch (class) {
+  case BPredPerceptron:
+    {
+      /* using strange name to pass variables */
+      /* beware of errors */
+      /* l1size is training threshold */
+      /* xor is perceptron table size */
+      /* shift_width is global history table size */ 
+      if(!xor || (xor & (xor-1)) != 0)
+  fatal("perceptron table size, `%d', must be non-zero and a power of 2",
+        xor);
+      
+      if(!shift_width || shift_width < 0)
+  fatal("global history table size, `%d', must be positive", 
+        shift_width);
+
+      if(l1size <= 0)
+  fatal("threshold, `%d', must be greater than 0",
+        l1size);
+      
+      if(l2size < 0)
+  fatal("local history table size, `%d', must be non-negative",
+        l2size);
+
+      pred_dir->config.percept.threshold = l1size;
+      pred_dir->config.percept.GHT_size = shift_width;
+      pred_dir->config.percept.LHT_size = l2size;
+      pred_dir->config.percept.perceptron_table_size = xor;
+      pred_dir->config.percept.GHT = calloc(shift_width, sizeof(int));
+      if(!pred_dir->config.percept.GHT)
+  fatal("cannot allocate global history table");
+
+      /* TODO: test traditional vs C99 2D array allocation */
+      /* may need to declare macro for traditional allocation */
+      pred_dir->config.percept.perceptrons = calloc((shift_width + l2size) * xor, sizeof(int));
+      if(!pred_dir->config.percept.perceptrons)
+  fatal("cannot allocate perceptron table");
+
+      if(l2size > 0){
+        pred_dir->config.percept.LHT = calloc(l2size * xor, sizeof(int));
+        if(!pred_dir->config.percept.LHT)
+    fatal("cannot allocate local history table");
+      }
+      else
+        pred_dir->config.percept.LHT = NULL;
+      
+      break;
+    }
   case BPred2Level:
     {
       if (!l1size || (l1size & (l1size-1)) != 0)
@@ -208,7 +273,7 @@ bpred_dir_create (
 	      l2size);
       pred_dir->config.two.l2size = l2size;
       
-      if (!shift_width || shift_width > 30)
+      if (!shift_width || shift_width > 30) /* wtf is this ?? > 30 => positive ?? */
 	fatal("shift register width, `%d', must be non-zero and positive",
 	      shift_width);
       pred_dir->config.two.shift_width = shift_width;
@@ -271,6 +336,12 @@ bpred_dir_config(
   FILE *stream)			/* output stream */
 {
   switch (pred_dir->class) {
+  case BPredPerceptron:
+    fprintf(stream, 
+      "pred_dir: %s: %d threshold, %d global history length, %d local history length, %d perceptrons\n",
+      name, pred_dir->config.percept.threshold, pred_dir->config.percept.GHT_size,
+      pred_dir->config.percept.LHT_size, pred_dir->config.percept.perceptron_table_size);
+    break;
   case BPred2Level:
     fprintf(stream,
       "pred_dir: %s: 2-lvl: %d l1-sz, %d bits/ent, %s xor, %d l2-sz, direct-mapped\n",
@@ -302,6 +373,9 @@ bpred_config(struct bpred_t *pred,	/* branch predictor instance */
 	     FILE *stream)		/* output stream */
 {
   switch (pred->class) {
+  case BPredPerceptron:
+    bpred_dir_config (pred->dirpred.perceptron, "perceptron", stream);
+    break;
   case BPredComb:
     bpred_dir_config (pred->dirpred.bimod, "bimod", stream);
     bpred_dir_config (pred->dirpred.twolev, "2lev", stream);
@@ -358,6 +432,9 @@ bpred_reg_stats(struct bpred_t *pred,	/* branch predictor instance */
   /* get a name for this predictor */
   switch (pred->class)
     {
+    case BPredPerceptron:
+      name = "bpred_perceptron";
+      break;
     case BPredComb:
       name = "bpred_comb";
       break;
@@ -487,6 +564,10 @@ bpred_after_priming(struct bpred_t *bpred)
   ((((ADDR) >> 19) ^ ((ADDR) >> MD_BR_SHIFT)) & ((PRED)->config.bimod.size-1))
     /* was: ((baddr >> 16) ^ baddr) & (pred->dirpred.bimod.size-1) */
 
+/* percetron table hash function MACRO */
+#define PERCEPT_HASH(PRED, ADDR)          \
+  (((ADDR) >> MD_BR_SHIFT) & ((PRED)->config.percept.perceptron_table_size-1))
+
 /* predicts a branch direction */
 char *						/* pointer to counter */
 bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
@@ -496,6 +577,25 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
 
   /* Except for jumps, get a pointer to direction-prediction bits */
   switch (pred_dir->class) {
+    case BPredPerceptron:
+      {
+        return (char *)p; //NULL
+        /* this function is not used for perceptron */
+
+        /* find correct perceptron from table */
+        int perceptron_index, table_index;
+
+        /* can experiment different hashing functions */
+        perceptron_index = 
+          (baddr >> MD_BR_SHIFT) & (pred_dir->config.percept.perceptron_table_size - 1);
+        
+        /* find the index of first entry of this perceptron table */
+        table_index = perceptron_index * pred_dir->config.percept.GHT_size;
+        p = &pred_dir->config.percept.perceptrons[table_index];
+        /* NOTE! this p is type (char *) */
+        /* conver to (int *) before accessing array value */
+      }
+      break;
     case BPred2Level:
       {
 	int l1index, l2index;
@@ -579,6 +679,83 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
   dir_update_ptr->pmeta = NULL;
   /* Except for jumps, get a pointer to direction-prediction bits */
   switch (pred->class) {
+    /* since no ret_stack is initialized for perceptron */
+    /* need to finish branching prediction inside this switch statement */
+    case BPredPerceptron:
+      if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND))
+  { 
+    /* NOTE! recorded values are type (char *) */
+    /* convert to (int *) to access value */
+    /*
+    dir_update_ptr->pdir1 = 
+      bpred_dir_lookup (pred->dirpred.perceptron, baddr);
+    */
+  
+    /* hash branch address to perceptron */
+    int perceptron_index = PERCEPT_HASH(pred->dirpred.perceptron, baddr);
+    if (perceptron_index < 0 || perceptron_index >= pred->dirpred.perceptron->config.percept.perceptron_table_size)
+fatal("Hash function return value out of range");
+
+    /* compute starting index of perceptron table */
+    int ptable_index = perceptron_index * 
+      (pred->dirpred.perceptron->config.percept.GHT_size + pred->dirpred.perceptron->config.percept.LHT_size);
+    dir_update_ptr->pdir1 = 
+      (char *)(&pred->dirpred.perceptron->config.percept.perceptrons[ptable_index]);
+    
+    if(pred->dirpred.perceptron->config.percept.LHT_size > 0){
+      /* compute starting index of local history table */
+      int ltable_index = perceptron_index * pred->dirpred.perceptron->config.percept.LHT_size;
+      dir_update_ptr->pmeta = 
+        (char *)(&pred->dirpred.perceptron->config.percept.LHT[ltable_index]);
+    }
+
+    /* record global history table */
+    dir_update_ptr->pdir2 = 
+      (char *)(pred->dirpred.perceptron->config.percept.GHT);
+
+    /* compute the result of perceptron */
+    /* biased x0 */
+    int perceptron_result = 1;
+
+    /* GHT portion */
+    int i = 0;
+    for(; i < pred->dirpred.perceptron->config.percept.GHT_size; i++)
+    {
+      /* TODO: remove this after debug */
+      if(abs(((int *)dir_update_ptr->pdir2)[i]) > 1)
+  fatal("Update GHT algo is wrong, abs out of range");
+
+      perceptron_result +=
+        ((int *)dir_update_ptr->pdir2)[i] * ((int *)dir_update_ptr->pdir1)[i];
+    }
+
+    /* LHT portion */
+    for(int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++)
+    {
+      /* TODO: remove this after debug */
+      if(abs(((int *)dir_update_ptr->pmeta)[j]) > 1)
+  fatal("Update LHT algo is wrong, abs out of range");
+
+      perceptron_result += 
+        ((int *)dir_update_ptr->pmeta)[j] * ((int *)dir_update_ptr->pdir1)[i+j];
+    }
+
+    /* record result value and pass to bpred_update */
+    dir_update_ptr->y_out = perceptron_result;
+
+    if (perceptron_result <= 0)
+    /* branch not taken */
+    /* TODO: double check threshold for this value */
+      return baddr + sizeof(md_inst_t);
+    else
+      return btarget;
+  }
+      else
+  {
+    /* branch taken if unconditional branch */
+    return btarget;
+  }
+      break;
     case BPredComb:
       if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND))
 	{
@@ -746,7 +923,7 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
 	     md_addr_t btarget,		/* resolved branch target */
 	     int taken,			/* non-zero if branch was taken */
 	     int pred_taken,		/* non-zero if branch was pred taken */
-	     int correct,		/* was earlier addr prediction ok? */
+	     int correct,		/* was earlier addr (branch) prediction correct? */
 	     enum md_opcode op,		/* opcode of instruction */
 	     struct bpred_update_t *dir_update_ptr)/* pred state pointer */
 {
@@ -808,6 +985,62 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
   if (pred->class == BPredNotTaken || pred->class == BPredTaken)
     return;
 
+  /* train perceptron */
+  if (pred->class == BPredPerceptron){
+    if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND)){
+      /* conditional branch */
+      /* train the corresponding perceptron */
+      if (!!pred_taken != !!taken || 
+        abs(dir_update_ptr->y_out) <= pred->dirpred.perceptron->config.percept.threshold){
+        /* incorrect prediction || less than threshold => continue to train */
+        if (taken){
+          /* branch taken */
+          /* GHT portion */
+          int i = 0;
+          for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
+            ((int *)dir_update_ptr->pdir1)[i] += ((int *)dir_update_ptr->pdir2)[i];
+          }
+          /* LHT portion */
+          for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
+            ((int *)dir_update_ptr->pdir1)[i+j] += ((int *)dir_update_ptr->pmeta)[j];
+          }
+        }
+        else{
+          /* branch not taken */
+          /* GHT portion */
+          int i = 0;
+          for (; i < pred->dirpred.perceptron->config.percept.GHT_size; i++){
+            ((int *)dir_update_ptr->pdir1)[i] -= ((int *)dir_update_ptr->pdir2)[i];
+          }
+          /* LHT portion */
+          for (int j = 0; j < pred->dirpred.perceptron->config.percept.LHT_size; j++){
+            ((int *)dir_update_ptr->pdir1)[i+j] -= ((int *)dir_update_ptr->pmeta)[j];
+          }
+        }
+      }
+
+      /* move the global shift register */
+      for (int i = pred->dirpred.perceptron->config.percept.GHT_size - 1; i > 0; i--){
+        ((int *)dir_update_ptr->pdir2)[i] = ((int *)dir_update_ptr->pdir2)[i-1];
+      }
+      if (taken)
+        ((int *)dir_update_ptr->pdir2)[0] = 1;
+      else
+        ((int *)dir_update_ptr->pdir2)[0] = -1;
+
+      /* move the local shift register */
+      if (pred->dirpred.perceptron->config.percept.LHT_size > 0){
+        for (int i = pred->dirpred.perceptron->config.percept.LHT_size - 1; i > 0; i--){
+          ((int *)dir_update_ptr->pmeta)[i] = ((int *)dir_update_ptr->pmeta)[i-1];
+        }
+        if (taken)
+          ((int *)dir_update_ptr->pmeta)[0] = 1;
+        else
+          ((int *)dir_update_ptr->pmeta)[0] = -1;
+      }
+    }
+    return;
+  }
   /* 
    * Now we know the branch didn't use the ret-addr stack, and that this
    * is a stateful predictor 
