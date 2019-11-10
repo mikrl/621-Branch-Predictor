@@ -16,6 +16,8 @@
 
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <ios>
 #include <string>
 #include <cstring>
 #include <cstdio>
@@ -31,8 +33,8 @@ int main()
   std::vector<std::vector<std::string>> experiments{
 						    {"sim-bpred", "-bpred", "nottaken", "-redir:sim", "cc1.alpha", "-O", "1stmt.i", "NULL", "1", "control-nottaken"},
 						     {"sim-bpred", "-bpred", "2lev", "s32","-redir:sim", "cc1.alpha", "-O", "1stmt.i", "NULL", "2", "2-lev"},
-						     {"sim-bpred", "s12", "s22", "s32","-redir:sim", "cc1.alpha", "-O", "1stmt.i", "NULL", "3", "perceptron"}};
-
+						    {"sim-bpred", "-bpred", "perceptron", "36", "0", "1024","-redir:sim", "cc1.alpha", "-O", "1stmt.i", "NULL", "3", "perceptron{}"}};
+  
   unsigned int MAX_CONCURRENT_JOBS = 10; // how many expts we want running at once max: like a batch, start x, wait for x
   unsigned int JOBS_RUNNING = 0; // how many jobs are currently active 
   unsigned int WAITING_ON = 0; // the job we are currently waiting on
@@ -100,11 +102,12 @@ int main()
 	    }
 
 	}
-      else{
-	if(execvp(expt_argv[0], expt_argv)){return 1;}
-      }
-
+      else
+	{
+	  if(execvp(expt_argv[0], expt_argv)){return 1;}
+	}
     }
+  
   std::cerr << "[*] All experiments dispatched." << std::endl;
   if (WAITING_ON<child_pid_vec.size()-1)
     {
@@ -120,10 +123,21 @@ int main()
 	    << "[*] Consolidating data..." << std::endl
     ;
   /*consolidate tempfiles into one and give to python */
-
+  char c_data[] = "./ece621-pythonXXXXXX.data";
+  int python_temp = mkstemp(c_data); close(python_temp); // will use ofstream
+  std::ofstream python_file(c_data,
+			    std::ios_base::app |
+			    std::ios_base::binary);
+  
+  for (auto tempfile : tmpname_vec)
+    {
+      std::ifstream fs_tempfile(tempfile.data(),
+				std::ios_base::binary);
+      python_file << fs_tempfile.rdbuf();
+    }
   /*------------------------------------------------------*/
   // Cleanup and quit
-  
+    
   std::cerr << "[*] Cleaning up tempfiles..." << std::endl;
   /* cleanup tempfiles */
   for (auto tempfile : tmpname_vec)
