@@ -26,16 +26,46 @@
 #include <sys/wait.h>
 #include <assert.h>
 
+std::vector<std::vector<std::string>> genPerceptronExpts()
+{
+  std::vector<std::vector<std::string>> experiments;
+  std::vector<std::string> ex_name{"../benchmarks/sim-bpred", "-bpred", "perceptron", "-bpred:perceptron"};
+  std::vector<std::string> benchmarks{"../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL"};
+
+
+  for (int global_idx = 36; global_idx<37; global_idx++)
+    {
+      for (int local_idx = 0; local_idx<100; local_idx+=5)
+	{
+	  std::vector<std::string> this_expt;
+	  
+	  this_expt.insert(this_expt.end(), ex_name.begin(), ex_name.end()); // add sim-bpred -bpred:perceptron
+	  this_expt.push_back(std::to_string(global_idx));
+	  this_expt.push_back(std::to_string(local_idx));
+	  this_expt.push_back(std::to_string(1024));
+	  this_expt.push_back("-redir:sim");
+	  this_expt.insert(this_expt.end(), benchmarks.begin(), benchmarks.end()); // add benchmark info
+	  this_expt.push_back("perceptron:("+std::to_string(global_idx)+","+std::to_string(local_idx)+")");
+	  experiments.push_back(this_expt);
+	}
+    }
+  return experiments;
+}
+
+
 int main()
 {
   // placeholder array for now. will be populated with
   //{"sim-safe", "-perceptpred", "go.alpha", <GO_ARGS>, NULL, expt#, expt_desc} for example
+  /*
   std::vector<std::vector<std::string>> experiments{
 						    {"../benchmarks/sim-bpred", "-bpred", "nottaken", "-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "1", "control-nottaken"},//};/*,
 						    {"../benchmarks/sim-bpred", "-bpred", "2lev", "-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "2", "2-lev"},
 						    {"../benchmarks/sim-bpred", "-bpred:perceptron", "36", "0", "1024","-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "3", "perceptron"}};
   //*/
-  unsigned int MAX_CONCURRENT_JOBS = 1; // how many expts we want running at once max: like a batch, start x, wait for x
+  std::vector<std::vector<std::string>> experiments = genPerceptronExpts();
+  
+  unsigned int MAX_CONCURRENT_JOBS = 5; // how many expts we want running at once max: like a batch, start x, wait for x
   unsigned int JOBS_RUNNING = 0; // how many jobs are currently active 
   unsigned int WAITING_ON = 0; // the job we are currently waiting on
   
@@ -74,7 +104,7 @@ int main()
 	  if (arg_vector[arg_idx]=="NULL") // if we hit NULL, args are full
 	    {
 	      expt_arg_vec.push_back(nullptr);
-	      std::string expt_tag = arg_vector[arg_idx+1]+":"+arg_vector[arg_idx+2];
+	      std::string expt_tag = arg_vector[arg_idx+1];
 	      expt_tag_vec.push_back(expt_tag);
 	      break;
 	    }
@@ -91,8 +121,7 @@ int main()
       pid_t child_proc_pid;
      
       expt_argv = const_cast <char **> (expt_arg_vec.data());
-      std::cerr << "[*] Starting experiment " << arg_vector.end()[-2]
-		<< ": " << arg_vector.end()[-1] << std::endl;
+      std::cerr << "[*] Starting experiment: " << arg_vector.end()[-1] << std::endl;
       
       child_proc_pid = fork();
       if (child_proc_pid<0)
@@ -141,7 +170,7 @@ int main()
 				//,std::ios_base::binary);
       //std::istream ss_expt_tag(expt_tag_vec[i]);
       
-      python_file << "EXPT_BEGIN"
+      python_file << "EXPT_BEGIN" << std::endl
 		  << expt_tag_vec[i] << std::endl
 		  << fs_tempfile.rdbuf()
 		  << "EXPT_END"<< std::endl;
