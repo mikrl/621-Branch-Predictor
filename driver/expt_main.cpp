@@ -26,6 +26,30 @@
 #include <sys/wait.h>
 #include <assert.h>
 
+std::vector<std::vector<std::string>> genSpec2K6Expts()
+{
+  std::vector<std::vector<std::string>> experiments;
+  std::vector<std::string> perceptron{"../benchmarks/sim-bpred", "-bpred", "perceptron", "-bpred:perceptron"};
+  std::vector<std::string> bimod{"../benchmarks/sim-bpred", "-bimod"
+  std::vector<std::string> benchmarks{"../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "HWB1"};
+  std::vector<std::vector<std::string>> benchmarks{{"bwaves.base.alpha", "bwaves.in"},
+						   {"bzip2.base.alpha", "dryer.jpg"},
+						   {"gobmk.base.alpha", "dragon1.sgf"},
+						   {"gromacs.base.alpha", "gromacs.tpr"},
+						   {"hmmer.base.alpha", "bombesin.hmm"},
+						   {"lbm.base.alpha", "lbm.in"},
+						   {"mcf.base.alpha", "inp.in"},
+						   {"milc.base.alpha", "su3imp.in"},
+						   {"sjeng.base.alpha", "test.txt"},
+						   {"specrand.base.alpha", "control"},
+						   {"sphinx3.base.alpha", "args.an4"},
+						   {"zeusmp.base.alpha", "zmp_inp"}};
+  std::vector<std::vector<unsigned int>> expt_setup{{1,7,12},{2,9,22},{4,11,28},{8,13,34},{16,14,36},
+					   {32,15,59},{64,16,59},{128,17,62},{256,17,62},{512,19,62}};
+
+}
+
+
 std::vector<std::vector<std::string>> genPerceptronExpts()
 {
   std::vector<std::vector<std::string>> experiments;
