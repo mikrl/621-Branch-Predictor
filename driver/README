@@ -1,0 +1,8 @@
+This  implements a driver in C++ to run the experiments.
+
+The experiments are provided as a vector of vector of strings.
+If the driver detects that the experiment is to be redirected to a file,
+it will create a tempfile. NOTE: does not deal with the case when a file is provided.
+
+The driver assumes that there is a sim-bpred file in ../benchmarks/ and that this is where the
+benchmarks are also kept.
