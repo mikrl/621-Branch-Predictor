@@ -501,22 +501,22 @@ bpred_reg_stats(struct bpred_t *pred,	/* branch predictor instance */
   sprintf(buf1, "%s.addr_hits / %s.updates", name, name);
   stat_reg_formula(sdb, buf,
 		   "branch address-prediction rate (i.e., addr-hits/updates)",
-		   buf1, "%9.4f");
+		   buf1, "%9.10f");
   sprintf(buf, "%s.bpred_dir_rate", name);
   sprintf(buf1, "%s.dir_hits / %s.updates", name, name);
   stat_reg_formula(sdb, buf,
 		  "branch direction-prediction rate (i.e., all-hits/updates)",
-		  buf1, "%9.4f");
+		  buf1, "%9.10f");
   sprintf(buf, "%s.bpred_jr_rate", name);
   sprintf(buf1, "%s.jr_hits / %s.jr_seen", name, name);
   stat_reg_formula(sdb, buf,
 		  "JR address-prediction rate (i.e., JR addr-hits/JRs seen)",
-		  buf1, "%9.4f");
+		  buf1, "%9.10f");
   sprintf(buf, "%s.bpred_jr_non_ras_rate.PP", name);
   sprintf(buf1, "%s.jr_non_ras_hits.PP / %s.jr_non_ras_seen.PP", name, name);
   stat_reg_formula(sdb, buf,
 		   "non-RAS JR addr-pred rate (ie, non-RAS JR hits/JRs seen)",
-		   buf1, "%9.4f");
+		   buf1, "%9.10f");
   sprintf(buf, "%s.retstack_pushes", name);
   stat_reg_counter(sdb, buf,
 		   "total number of address pushed onto ret-addr stack",
@@ -537,7 +537,7 @@ bpred_reg_stats(struct bpred_t *pred,	/* branch predictor instance */
   sprintf(buf1, "%s.ras_hits.PP / %s.used_ras.PP", name, name);
   stat_reg_formula(sdb, buf,
 		   "RAS prediction rate (i.e., RAS hits/used RAS)",
-		   buf1, "%9.4f");
+		   buf1, "%9.10f");
 }
 
 void
