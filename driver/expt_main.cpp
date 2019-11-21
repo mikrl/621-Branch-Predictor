@@ -30,25 +30,98 @@ std::vector<std::vector<std::string>> genSpec2K6Expts()
 {
   std::vector<std::vector<std::string>> experiments;
   std::vector<std::string> perceptron{"../benchmarks/sim-bpred", "-bpred", "perceptron", "-bpred:perceptron"};
-  std::vector<std::string> bimod{"../benchmarks/sim-bpred", "-bimod"
-  std::vector<std::string> benchmarks{"../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "HWB1"};
-  std::vector<std::vector<std::string>> benchmarks{{"bwaves.base.alpha", "bwaves.in"},
-						   {"bzip2.base.alpha", "dryer.jpg"},
-						   {"gobmk.base.alpha", "dragon1.sgf"},
-						   {"gromacs.base.alpha", "gromacs.tpr"},
-						   {"hmmer.base.alpha", "bombesin.hmm"},
-						   {"lbm.base.alpha", "lbm.in"},
-						   {"mcf.base.alpha", "inp.in"},
-						   {"milc.base.alpha", "su3imp.in"},
-						   {"sjeng.base.alpha", "test.txt"},
-						   {"specrand.base.alpha", "control"},
-						   {"sphinx3.base.alpha", "args.an4"},
-						   {"zeusmp.base.alpha", "zmp_inp"}};
+  std::vector<std::string> twolev{"../benchmarks/sim-bpred", "-bpred", "2lev", "-bpred:2lev"};
+  std::vector<std::string> nottaken{"../benchmarks/sim-bpred", "-bpred", "nottaken"};
+  std::vector<std::string> taken{"../benchmarks/sim-bpred", "-bpred", "taken"};
+  std::string expt_dir = "../benchmarks/spec2k6-alpha-bin";
+
+  std::vector<std::vector<std::string>> benchmarks;
+
+  benchmarks = {
+		{expt_dir+"/gobmk/gobmk.base.alpha", expt_dir+"/gobmk/test/input/dragon1.sgf", "gobmk"},
+		{expt_dir+"/gromacs/gromacs.base.alpha", "-silent", "-deffnm", expt_dir+"/gromacs/test/gromacs.tpr", "-nice", "gromacs"},
+		{expt_dir+"/hmmer/hmmer.base.alpha", expt_dir+"/hmmer/test/input/bombesin.hmm", "hmmer"},
+		{expt_dir+"/mcf/mcf.base.alpha", expt_dir+"/mcf/test/input/inp.in", "mcf"},
+	        {expt_dir+"/milc/milc.base.alpha", "<", expt_dir+"/test/su3imp.in", "milc"},
+		{expt_dir+"/sjeng/sjeng.base.alpha", expt_dir+"/sjeng/test/input/test.txt", "sjeng"}};
+
   std::vector<std::vector<unsigned int>> expt_setup{{1,7,12},{2,9,22},{4,11,28},{8,13,34},{16,14,36},
 					   {32,15,59},{64,16,59},{128,17,62},{256,17,62},{512,19,62}};
+  bool control_expts = false;
+  for (auto& expt_cfg : expt_setup)
+    {
+      int hw_budget = expt_cfg[0];
+      int hist_2lev = expt_cfg[1];
+      int hist_perc = expt_cfg[2];
+      for (auto& benchmark : benchmarks)
+	{
+	  std::string benchmark_prog = benchmark.front();
+	  std::vector<std::string> benchmark_args(++benchmark.begin(), --benchmark.end());
+	  std::string benchmark_tag = benchmark.back();
+	  std::vector<std::string> this_expt_perc;
+	  std::vector<std::string> this_expt_twolev;
+	  std::vector<std::string> this_expt_taken;
+	  std::vector<std::string> this_expt_nottaken;
 
+	  // boilerplate
+	  this_expt_perc.insert(this_expt_perc.end(), perceptron.begin(), perceptron.end());
+	  this_expt_twolev.insert(this_expt_twolev.end(), twolev.begin(), twolev.end());
+	  this_expt_taken.insert(this_expt_taken.end(), taken.begin(), taken.end()); 
+	  this_expt_nottaken.insert(this_expt_nottaken.end(), nottaken.begin(), nottaken.end());
+	  
+	  //percept config
+	  this_expt_perc.push_back(std::to_string(hist_perc));
+	  this_expt_perc.push_back(std::to_string(0));
+	  this_expt_perc.push_back(std::to_string(1024));
+	  // 2lev config
+	  this_expt_twolev.push_back(std::to_string(1));
+	  this_expt_twolev.push_back(std::to_string(1024));
+	  this_expt_twolev.push_back(std::to_string(hist_2lev));
+	  this_expt_twolev.push_back(std::to_string(0));
+
+	  // redir
+	  this_expt_perc.push_back("-redir:sim");
+	  this_expt_twolev.push_back("-redir:sim");
+	  this_expt_taken.push_back("-redir:sim");
+	  this_expt_nottaken.push_back("-redir:sim");
+	  
+	  // benchmark config
+	  this_expt_perc.push_back(benchmark_prog);
+	  this_expt_twolev.push_back(benchmark_prog);
+	  this_expt_taken.push_back(benchmark_prog);
+	  this_expt_nottaken.push_back(benchmark_prog);
+
+	  for (auto arg : benchmark_args)
+	    {
+	      this_expt_perc.push_back(arg);
+	      this_expt_twolev.push_back(arg);
+	      this_expt_taken.push_back(arg);
+	      this_expt_nottaken.push_back(arg);
+	    }
+	  // NULL and expt label
+	  this_expt_perc.push_back("NULL");
+	  this_expt_twolev.push_back("NULL");
+	  this_expt_taken.push_back("NULL");
+	  this_expt_nottaken.push_back("NULL");
+	  
+	  this_expt_perc.push_back("HW:"+std::to_string(hw_budget)+"-perceptron-"+benchmark_tag);
+	  this_expt_twolev.push_back("HW:"+std::to_string(hw_budget)+"-2lev-"+benchmark_tag);
+	  this_expt_taken.push_back("control-taken-"+benchmark_tag);
+	  this_expt_nottaken.push_back("control-nottaken-"+benchmark_tag);
+	  
+	  // add to experiments
+	  if (!control_expts)
+	    {
+	      experiments.push_back(this_expt_taken);
+	      experiments.push_back(this_expt_nottaken);
+	    }
+	  experiments.push_back(this_expt_twolev);
+	  experiments.push_back(this_expt_perc);
+	}
+      control_expts = true;
+    }
+  return experiments;
 }
-
 
 std::vector<std::vector<std::string>> genPerceptronExpts()
 {
@@ -79,17 +152,10 @@ std::vector<std::vector<std::string>> genPerceptronExpts()
 
 int main()
 {
-  // placeholder array for now. will be populated with
-  //{"sim-safe", "-perceptpred", "go.alpha", <GO_ARGS>, NULL, expt#, expt_desc} for example
-  /*
-  std::vector<std::vector<std::string>> experiments{
-						    {"../benchmarks/sim-bpred", "-bpred", "nottaken", "-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "1", "control-nottaken"},//};/*,
-						    {"../benchmarks/sim-bpred", "-bpred", "2lev", "-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "2", "2-lev"},
-						    {"../benchmarks/sim-bpred", "-bpred:perceptron", "36", "0", "1024","-redir:sim", "../benchmarks/cc1.alpha", "-O", "../benchmarks/1stmt.i", "NULL", "3", "perceptron"}};
-  //*/
-  std::vector<std::vector<std::string>> experiments = genPerceptronExpts();
+
+  std::vector<std::vector<std::string>> experiments = genSpec2K6Expts();
   
-  unsigned int MAX_CONCURRENT_JOBS = 5; // how many expts we want running at once max: like a batch, start x, wait for x
+  unsigned int MAX_CONCURRENT_JOBS = 2; // how many expts we want running at once max: like a batch, start x, wait for x
   unsigned int JOBS_RUNNING = 0; // how many jobs are currently active 
   unsigned int WAITING_ON = 0; // the job we are currently waiting on
   
