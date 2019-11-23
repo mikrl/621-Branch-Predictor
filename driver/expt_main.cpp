@@ -39,10 +39,10 @@ std::vector<std::vector<std::string>> genSpec2K6Expts()
 
   benchmarks = {
 		{expt_dir+"/gobmk/gobmk.base.alpha", expt_dir+"/gobmk/test/input/dragon1.sgf", "gobmk"},
-		{expt_dir+"/gromacs/gromacs.base.alpha", "-silent", "-deffnm", expt_dir+"/gromacs/test/gromacs.tpr", "-nice", "gromacs"},
+		{expt_dir+"/gromacs/gromacs.base.alpha", "-silent", "-deffnm", expt_dir+"/gromacs/test/gromacs.tpr", "-nice", "0", "gromacs"},
 		{expt_dir+"/hmmer/hmmer.base.alpha", expt_dir+"/hmmer/test/input/bombesin.hmm", "hmmer"},
 		{expt_dir+"/mcf/mcf.base.alpha", expt_dir+"/mcf/test/input/inp.in", "mcf"},
-	        {expt_dir+"/milc/milc.base.alpha", "<", expt_dir+"/test/su3imp.in", "milc"},
+	       // {expt_dir+"/milc/milc.base.alpha", "<", expt_dir+"/test/su3imp.in", "milc"},
 		{expt_dir+"/sjeng/sjeng.base.alpha", expt_dir+"/sjeng/test/input/test.txt", "sjeng"}};
 
   std::vector<std::vector<unsigned int>> expt_setup{{1,7,12},{2,9,22},{4,11,28},{8,13,34},{16,14,36},
